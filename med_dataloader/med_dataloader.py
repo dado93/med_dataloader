@@ -315,7 +315,7 @@ class DataLoader:
         if is_categorical:
             ds = ds.map(lambda img: tf.one_hot(tf.squeeze(tf.cast(img,
                                                                   img_type)),
-                                               depth=int(num_classes))
+                                               depth=int(num_classes)),
                         num_parallel_calls=AUTOTUNE)
 
         ds = ds.map(lambda img: tf.cast(img, img_type),

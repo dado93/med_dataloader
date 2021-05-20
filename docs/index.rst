@@ -1,5 +1,5 @@
 Welcome to Medical Images Dataloader's documentation!
-======================================
+=====================================================
 
 .. toctree::
    :maxdepth: 2

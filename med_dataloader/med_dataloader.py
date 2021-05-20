@@ -79,6 +79,8 @@ class DataLoader:
             FileNotFoundError: :py:attr:`imgB_label` doesn't exists.
             ValueError: :py:attr:`cache_mode` is not "prod" nor "test".
             ValueError: :py:attr:`use_3D` is not a Boolean value.
+
+        |Tensor|
         """
 
         if mode not in __dataloader_modality__:

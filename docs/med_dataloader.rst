@@ -1,3 +1,4 @@
+.. include:: macros.hrst
 med\_dataloader package
 =======================
 

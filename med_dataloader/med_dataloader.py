@@ -1,6 +1,8 @@
 """Main module."""
 
 import os
+
+from tensorflow.python.types.core import Value
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 import SimpleITK as sitk
@@ -79,8 +81,6 @@ class DataLoader:
             FileNotFoundError: :py:attr:`imgB_label` doesn't exists.
             ValueError: :py:attr:`cache_mode` is not "prod" nor "test".
             ValueError: :py:attr:`use_3D` is not a Boolean value.
-
-        |Tensor|
         """
 
         if mode not in __dataloader_modality__:
@@ -230,7 +230,31 @@ class DataLoader:
                     random_crop_size=None,
                     random_rotate=False,
                     random_flip=False):
+        """Create a |Dataset| with the provided images and labels. 
+        
+        This function
+        creates a |Dataset| by loading the images and the labels that can be
+        found in the :py:attr:`self.data_dir`. Random cropping, rotation, and
+        flipping can be independently enabled, so that data augmentation 
+        is performed on each image.
 
+        Args:
+            batch_size(int, optional): Batch size dimension for the |Dataset|. Defaults
+                to 32.
+            augmentation (bool, optional): Apply augmentation to the data
+                if set to `True`. Defaults to `False`.
+            random_crop_size (int, optional): if `augmentation` is enabled, 
+                apply a random crop with the provided value. Defaults to None.
+            random_rotate (bool, optional): if :py:attr:`augmentation` is enabled, 
+                apply a random rotation to each image if set to `True`.
+                Defaults to`False`.
+            random_flip (bool, optional): if :py:attr:`augmentation` is enabled, 
+                apply a random flip to each image if set to `True`. Defaults to `False`.
+        
+        Returns: 
+            |Dataset|: containing both the images and labels in batches of dimension :py:attr:`batch_size`.
+
+        """
         ds = tf.data.Dataset.zip((self.get_imgs(img_paths=self.imgA_paths,
                                                 img_label=self.imgA_label,
                                                 img_type=self.imgA_type,
@@ -401,8 +425,20 @@ class DataLoader:
 
     @ staticmethod
     def is_3D_data(path):
-        image = sitk.GetArrayFromImage(sitk.ReadImage(path))
+        """Check whether the image is three-dimensional.
 
+        Args:
+            path (str, required): Path to the image to be checked.
+
+        Raises:
+            ValueError: if :py:attr:`path` does not exist.
+
+        Returns:
+            bool: `True` if image is 3D, `False otherwise`.
+        """
+        if (not os.path.exists(path)):
+            raise ValueError
+        image = sitk.GetArrayFromImage(sitk.ReadImage(path))    
         if len(image.shape) == 3:
             return True
         elif len(image.shape) == 2:
@@ -536,12 +572,48 @@ def generate_dataset(data_dir,
 
 def get_dataset(data_dir,
                 percentages,
-                batch_size,
+                train_batch_size,
+                val_batch_size=None,
+                test_batch_size=None,
                 train_augmentation=True,
                 random_crop_size=None,
                 random_rotate=True,
                 random_flip=True
-                ):
+                ):  
+    """High level function to create training, validation, and test |Dataset| sets.
+
+    This is a high level function that can be directly used to separately
+    create a training, validation, and test sets.
+
+    Args:
+        data_dir (str, required): Path to directory that contains the cached |Dataset|.
+        percentages (list, required): a list of three elements with 
+            percentages for training, validation, and test sets, 
+            respectively.
+        train_batch_size (int, required): batch size for the
+            training set.
+        val_batch_size (int, optional): batch size for the validation set.
+            Defaults to :py:attr:`train_batch_size`.
+        test_batch_size (int, optional): batch size for the test set.
+            Defaults to :py:attr:`train_batch_size`.
+        train_augmentation: (bool, optioal): if `True` enable data 
+            augmentation on the training set.
+        random_crop_size (int, optional): if `train_augmentation` is enabled, 
+            apply a random crop with the provided value on the
+            training set. Defaults to None.
+        random_rotate (bool, optional): if :py:attr:`train_augmentation` is enabled, 
+            apply a random rotation to each image of the training set if set to `True`.
+            Defaults to`False`.
+        random_flip (bool, optional): if :py:attr:`train_augmentation` is enabled, 
+            apply a random flip to each image of the training set
+            if set to `True`. Defaults to `False`.
+
+    Returns:
+
+        - train_ds (|Dataset|) - dataset to be used fo training purposes.
+        - val_ds (|Dataset|) - dataset to be used for validation purposes.
+        - test_ds (|Dataset|) - dataset to be used for testing purposes.
+    """    
 
     if len(percentages) != 3:
         raise ValueError("Percentages has to be a list of 3 elements")
@@ -549,11 +621,16 @@ def get_dataset(data_dir,
     if round((percentages[0] + percentages[1] + percentages[2]), 1) != 1.0:
         raise ValueError("Sum of percentages has to be 1")
 
+    if (val_batch_size == None):
+        val_batch_size = train_batch_size
+    if (test_batch_size == None):
+        test_batch_size = train_batch_size
+
     data_loader = DataLoader(mode="get",
                              data_dir=data_dir,
                              )
 
-    complete_ds = data_loader.get_dataset(batch_size=batch_size,
+    complete_ds = data_loader.get_dataset(batch_size=train_batch_size,
                                           augmentation=train_augmentation,
                                           random_crop_size=random_crop_size,
                                           random_rotate=random_rotate,
@@ -573,11 +650,11 @@ def get_dataset(data_dir,
 
     # Train Datasets
     train_ds = complete_ds.take(train_ends)
-    train_ds = train_ds.batch(batch_size)
+    train_ds = train_ds.batch(train_batch_size)
 
     # Same as before, but without augmentation since now we want to obtain
     # validation and test set
-    complete_ds = data_loader.get_dataset(batch_size=batch_size,
+    complete_ds = data_loader.get_dataset(batch_size=val_batch_size,
                                           augmentation=False)
 
     complete_ds = complete_ds.unbatch()
@@ -585,10 +662,10 @@ def get_dataset(data_dir,
     # Validation Datasets
     valid_ds = complete_ds.take(valid_ends)
     valid_ds = valid_ds.skip(valid_begins)
-    valid_ds = valid_ds.batch(batch_size)
+    valid_ds = valid_ds.batch(val_batch_size)
 
     # Test Datasets
     test_ds = complete_ds.skip(valid_ends)
-    test_ds = test_ds.batch(batch_size)
+    test_ds = test_ds.batch(test_batch_size)
 
     return train_ds, valid_ds, test_ds

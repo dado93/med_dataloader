@@ -1,1 +1,2 @@
 .. |Tensor| replace:: `Tensor <http://www.tensorflow.org/api_docs/python/tf/Tensor>`__
+.. |Dataset| replace:: `Tensorflow Dataset <https://www.tensorflow.org/api_docs/python/tf/data/Dataset>`__
